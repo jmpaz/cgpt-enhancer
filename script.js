@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         ChatGPT: quick access
+// @name         ChatGPT enhancements
 // @version      0.1.0
 // @description  Press F2 / double-Shift to open model selector; Shift+F2 / Alt+double-Shift to open reasoning effort selector
 // @match        https://chatgpt.com/*
@@ -16,6 +16,114 @@
   const ENABLE_SHIFT_F2 = true;
   const ENABLE_ALT_DOUBLE_SHIFT = true;
   const DOUBLE_SHIFT_MS = 350;
+
+  // --- Link cleaning ---
+  const TARGET_KEY = 'utm_source';
+  const TARGET_VALUE = 'chatgpt.com';
+
+  const isHttp = (url) => url.protocol === 'http:' || url.protocol === 'https:';
+
+  const stripUtmSource = (urlLike) => {
+    try {
+      const url = new URL(urlLike, location.href);
+      if (!isHttp(url)) return urlLike;
+
+      const params = new URLSearchParams(url.search);
+      let removed = false;
+      const newParams = new URLSearchParams();
+
+      params.forEach((value, key) => {
+        const drop =
+          key.toLowerCase() === TARGET_KEY.toLowerCase() &&
+          value.toLowerCase() === TARGET_VALUE.toLowerCase();
+        if (drop) {
+          removed = true;
+        } else {
+          newParams.append(key, value);
+        }
+      });
+
+      if (!removed) return urlLike;
+
+      url.search = newParams.toString() ? `?${newParams}` : '';
+      return url.toString();
+    } catch {
+      return urlLike;
+    }
+  };
+
+  const processAnchor = (anchor) => {
+    if (!anchor || !anchor.href) return;
+    if (!/utm_source=chatgpt\.com/i.test(anchor.href)) return;
+    const cleaned = stripUtmSource(anchor.href);
+    if (cleaned !== anchor.href) anchor.href = cleaned;
+  };
+
+  const sweep = (root = document) => {
+    if (!root.querySelectorAll) return;
+    root.querySelectorAll('a[href]').forEach(processAnchor);
+  };
+
+  const handlePreNavEvent = (event) => {
+    const target = event.target;
+    const anchor = target && target.closest ? target.closest('a[href]') : null;
+    if (anchor) processAnchor(anchor);
+  };
+
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      if (mutation.type === 'childList') {
+        mutation.addedNodes.forEach((node) => {
+          if (node.nodeType !== 1) return;
+          if (node.matches && node.matches('a[href]')) processAnchor(node);
+          if (node.querySelectorAll) {
+            node.querySelectorAll('a[href]').forEach(processAnchor);
+          }
+        });
+      } else if (
+        mutation.type === 'attributes' &&
+        mutation.target &&
+        mutation.target.matches('a[href]')
+      ) {
+        processAnchor(mutation.target);
+      }
+    }
+  });
+
+  const startLinkCleaning = () => {
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['href'],
+    });
+
+    sweep(document);
+
+    document.addEventListener('click', handlePreNavEvent, true);
+    document.addEventListener('auxclick', handlePreNavEvent, true);
+    document.addEventListener('contextmenu', handlePreNavEvent, true);
+  };
+
+  try {
+    const originalOpen = window.open;
+    if (typeof originalOpen === 'function') {
+      window.open = function (url, name, specs) {
+        if (typeof url === 'string') {
+          url = stripUtmSource(url);
+        }
+        return originalOpen.call(this, url, name, specs);
+      };
+    }
+  } catch {
+    // Ignore if sandboxed or blocked by CSP—anchor cleaning still works.
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startLinkCleaning, { once: true });
+  } else {
+    startLinkCleaning();
+  }
 
   const isVisible = (el) => {
     const r = el.getBoundingClientRect();
