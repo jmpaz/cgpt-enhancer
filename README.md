@@ -2,6 +2,12 @@
 
 This userscript adds convenience bindings to [chatgpt.com](https://chatgpt.com) for features which otherwise require mouse clicks.
 
+
+### Links
+
+`utm_source=chatgpt.com` is automatically removed from links before navigation.
+
+
 ### Model
 
 **Model picker:** `shift` → `shift`
@@ -13,7 +19,8 @@ This userscript adds convenience bindings to [chatgpt.com](https://chatgpt.com) 
 
 <img alt="reasoning-effort" src="https://github.com/user-attachments/assets/30b5ef65-5e20-490f-b0b0-a53c11342a4d" width=70% />
 
-## Memory
+
+### Memory
 
 **Check status:** `F9`
 
