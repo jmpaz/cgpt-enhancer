@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "nix: ChatGPT Enhancer",
+  "version": "0.1.1",
+  "description": "Keyboard shortcuts and small behavior fixes for chatgpt.com.",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*"
+      ],
+      "js": [
+        "script.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ]
+}

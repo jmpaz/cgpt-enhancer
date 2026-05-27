@@ -2,6 +2,19 @@
 
 This userscript adds convenience bindings to [chatgpt.com](https://chatgpt.com) for features which otherwise require mouse clicks.
 
+### Nix
+
+This repo exposes a Chrome extension package:
+
+```nix
+inputs.cgpt-enhancer = {
+  url = "path:/home/josh/dev/cgpt-enhancer";
+  inputs.nixpkgs.follows = "nixpkgs";
+};
+```
+
+Use `inputs.cgpt-enhancer.packages.${system}.default` with Chromium or Chrome's `--load-extension=...` flag.
+
 
 ### Links
 
