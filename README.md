@@ -30,6 +30,8 @@ Use `inputs.cgpt-enhancer.packages.${system}.default` with Chromium or Chrome's 
 
 **Reasoning effort:** _hold `alt`/`option`_ + `shift` → `shift`
 
+**Focused model effort menu:** `shift` + `enter` or `shift` + `space` on `Thinking` / `Pro`
+
 <img alt="reasoning-effort" src="https://github.com/user-attachments/assets/30b5ef65-5e20-490f-b0b0-a53c11342a4d" width=70% />
 
 

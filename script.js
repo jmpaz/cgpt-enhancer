@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT enhancements
-// @version      0.1.1
+// @version      0.1.4
 // @description  Keyboard shortcuts: open model / reasoning effort picker (double-shift / alt+double-shift), memory (F9 to check status, F10 to toggle)
 // @match        https://chatgpt.com/*
 // @run-at       document-start
@@ -556,13 +556,129 @@
       if (top === button || button.contains(top)) return button;
     }
     if (list[0]) return list[0];
-    return (
-      [...document.querySelectorAll('button[aria-haspopup="menu"]')].find(
-        (button) =>
-          (button.getAttribute('aria-label') || '').startsWith('Model selector') &&
-          isVisible(button),
-      ) || null
+    const menuButtons = [...document.querySelectorAll('button[aria-haspopup="menu"]')].filter(
+      isVisible,
     );
+    const labeledButton = menuButtons.find((button) =>
+      (button.getAttribute('aria-label') || '').startsWith('Model selector'),
+    );
+    if (labeledButton) return labeledButton;
+    return (
+      menuButtons.find((button) => {
+        if (!button.classList.contains('__composer-pill')) return false;
+        if (button.matches('[data-testid="composer-pill-thinking"]')) return false;
+        const text = (button.textContent || '').toLowerCase().replace(/\s+/g, ' ').trim();
+        return text && !text.includes('thinking');
+      }) || null
+    );
+  };
+
+  const getMenuItems = (menu) => {
+    if (!menu) return [];
+    return [
+      ...menu.querySelectorAll('[role="menuitemradio"], [role="menuitem"], [role="option"]'),
+    ].filter((item) => {
+      if (!isVisible(item)) return false;
+      if (item.matches('[aria-disabled="true"], [data-disabled]')) return false;
+      return true;
+    });
+  };
+
+  const getModelMenuItems = (menu) =>
+    getMenuItems(menu).filter((item) => {
+      if (item.classList.contains('__menu-item-trailing-btn')) return false;
+      const testId = item.getAttribute('data-testid') || '';
+      if (testId.endsWith('-thinking-effort')) return false;
+      return testId.startsWith('model-switcher-') || testId === 'model-configure-modal';
+    });
+
+  const getOpenModelMenu = () =>
+    [...document.querySelectorAll('[role="menu"]')]
+      .filter(isVisible)
+      .find((menu) => getModelMenuItems(menu).length);
+
+  const isCheckedMenuItem = (item) =>
+    item.getAttribute('aria-checked') === 'true' || item.getAttribute('data-state') === 'checked';
+
+  const focusMenuItem = (item) => {
+    if (!item) return false;
+    item.focus({ preventScroll: true });
+    item.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    return true;
+  };
+
+  const focusOpenModelMenu = () => {
+    const menu = getOpenModelMenu();
+    const items = getModelMenuItems(menu);
+    const target = items.find(isCheckedMenuItem) || items[0];
+    return focusMenuItem(target);
+  };
+
+  const focusControlledMenu = (trigger) => {
+    [0, 50, 150].forEach((ms) => {
+      window.setTimeout(() => {
+        const id = trigger.getAttribute('aria-controls');
+        const menu = id ? document.getElementById(id) : null;
+        if (!menu || !isVisible(menu)) return;
+        const items = getMenuItems(menu);
+        const target = items.find(isCheckedMenuItem) || items[0];
+        focusMenuItem(target);
+      }, ms);
+    });
+  };
+
+  const focusModelMenuAfterOpen = () => {
+    [0, 50, 150].forEach((ms) => {
+      window.setTimeout(() => {
+        const menu = getOpenModelMenu();
+        if (menu && !getModelMenuItems(menu).includes(document.activeElement)) {
+          focusOpenModelMenu();
+        }
+      }, ms);
+    });
+  };
+
+  const handleModelMenuNavigation = (event) => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return false;
+    const menu = getOpenModelMenu();
+    const items = getModelMenuItems(menu);
+    if (!items.length) return false;
+    const activeMenu = document.activeElement?.closest?.('[role="menu"]');
+    if (activeMenu && activeMenu !== menu) return false;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+
+    const activeIndex = items.indexOf(document.activeElement);
+    const checkedIndex = items.findIndex(isCheckedMenuItem);
+    let nextIndex;
+
+    if (event.key === 'Home') nextIndex = 0;
+    else if (event.key === 'End') nextIndex = items.length - 1;
+    else if (activeIndex >= 0) {
+      const delta = event.key === 'ArrowDown' ? 1 : -1;
+      nextIndex = (activeIndex + delta + items.length) % items.length;
+    } else if (checkedIndex >= 0) {
+      const delta = event.key === 'ArrowDown' ? 1 : -1;
+      nextIndex = (checkedIndex + delta + items.length) % items.length;
+    } else {
+      nextIndex = event.key === 'ArrowDown' ? 0 : items.length - 1;
+    }
+
+    return focusMenuItem(items[nextIndex]);
+  };
+
+  const getActiveModelMenuItem = () => {
+    const menu = getOpenModelMenu();
+    if (!menu) return null;
+    const items = getModelMenuItems(menu);
+    return items.includes(document.activeElement) ? document.activeElement : null;
+  };
+
+  const getThinkingEffortTrigger = (item) => {
+    const row = item?.closest?.('[data-model-picker-thinking-effort-row]');
+    return row?.querySelector?.('[data-model-picker-thinking-effort-action][aria-haspopup="menu"]');
   };
 
   const getThinkingButton = () => {
@@ -601,13 +717,27 @@
   };
 
   const openModelMenu = (trigger = 'unknown') => {
+    if (focusOpenModelMenu()) {
+      logInfo('menu.model.focus', { trigger });
+      return true;
+    }
     const button = getModelButton();
     if (!button) {
       logWarn('menu.model.missing', { trigger });
       return false;
     }
     triggerButton(button);
+    focusModelMenuAfterOpen();
     logInfo('menu.model.open', { trigger });
+    return true;
+  };
+
+  const openThinkingEffortMenu = (trigger = 'unknown') => {
+    const button = getThinkingEffortTrigger(getActiveModelMenuItem());
+    if (!button || button.matches('[aria-disabled="true"], [data-disabled]')) return false;
+    triggerButton(button);
+    focusControlledMenu(button);
+    logInfo('menu.model.effort.open', { trigger });
     return true;
   };
 
@@ -633,8 +763,25 @@
     action();
   };
 
+  const isShiftSpace = (event) =>
+    event.key === ' ' || event.key === 'Spacebar' || event.code === 'Space';
+
   const onKeyDown = (event) => {
     const now = performance.now();
+
+    if (
+      event.shiftKey &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      !event.metaKey &&
+      ((event.key === 'Enter' && openThinkingEffortMenu('shift-enter')) ||
+        (isShiftSpace(event) && openThinkingEffortMenu('shift-space')))
+    ) {
+      handleMenuHotkey(event, () => {});
+      return;
+    }
+
+    if (handleModelMenuNavigation(event)) return;
 
     if (
       CONFIG.memory.hotkeysEnabled &&

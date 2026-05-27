@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "nix: ChatGPT Enhancer",
-  "version": "0.1.1",
+  "version": "0.1.4",
   "description": "Keyboard shortcuts and small behavior fixes for chatgpt.com.",
   "content_scripts": [
     {
